@@ -13,43 +13,15 @@ import {
   User as UserIcon, Calendar, TrendingUp as TrendingUpIcon, Target, CheckSquare, List, Image as ImageIcon, Sun, Moon, DownloadCloud, Menu,
   MessageCircle, Volume2, BookOpen, Lightbulb, UserCog, Code, Database, Factory, HeartPulse, HardHat, Handshake, Brain, Book, Award as AwardIcon
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+
 
 // Import translation files directly from the src directory
 // import translationEN from './en.json';
 // import translationHI from './hi.json';
 // import i18n from './i18n'; // Assuming you have a separate i18n config file
 
-// Ensure __app_id and __firebase_config are defined in the environment
-// For standalone testing, you might need to mock these or provide default values
-const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'standalone-user-dashboard';
-const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {
-  // A minimal, placeholder Firebase config for standalone testing.
-  // Replace with your actual project's config if you want real Firebase integration
-  // when running this file separately.
-  apiKey: "YOUR_API_KEY", // Replace with your Firebase API Key
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // Replace with your Firebase Auth Domain
-  projectId: "YOUR_PROJECT_ID", // Replace with your Firebase Project ID
-  storageBucket: "YOUR_PROJECT_ID.appspot.com", // Replace with your Firebase Storage Bucket
-  messagingSenderId: "YOUR_SENDER_ID", // Replace with your Firebase Messaging Sender ID
-  appId: "YOUR_APP_ID"
-};
-const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
-
-// Initialize Firebase (only once)
-let app;
-let db;
-let auth;
-try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  auth = getAuth(app);
-} catch (error) {
-  console.error("Firebase initialization error:", error);
-  console.warn("Using default Firebase config. Please replace with your actual project config for full functionality.");
-}
+// App ID for local storage
+const appId = 'yuvasaathi-app';
 
 // Define a consistent, professional color palette for the government theme
 const LIGHT_COLOR_PALETTE = {
@@ -917,7 +889,7 @@ const ResumePreviewModal = ({ resumeData, onClose, colorPalette }) => {
 };
 
 // Resume Management Section - Enhanced with more options
-const ResumeManagementSection = ({ userId, db, showMessage, colorPalette }) => {
+const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
   const [resumeFile, setResumeFile] = useState(null);
   const [uploadedResumeName, setUploadedResumeName] = useState('');
   const [isBuildingResume, setIsBuildingResume] = useState(false); // State for resume builder
@@ -955,13 +927,12 @@ const ResumeManagementSection = ({ userId, db, showMessage, colorPalette }) => {
   };
 
   useEffect(() => {
-    const fetchResume = async () => {
-      if (userId && db) {
+    const fetchResume = () => {
+      if (userId) {
         try {
-          const docRef = doc(db, `artifacts/${appId}/users/${userId}/resumes`, 'current_resume');
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setUploadedResumeName(docSnap.data().fileName);
+          const resumeName = localStorage.getItem(`currentResume_${userId}`);
+          if (resumeName) {
+            setUploadedResumeName(resumeName);
           }
         } catch (error) {
           console.error("Error fetching resume:", error);
@@ -969,7 +940,7 @@ const ResumeManagementSection = ({ userId, db, showMessage, colorPalette }) => {
       }
     };
     fetchResume();
-  }, [userId, db]);
+  }, [userId]);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -989,29 +960,21 @@ const ResumeManagementSection = ({ userId, db, showMessage, colorPalette }) => {
     }
   };
 
-  const handleUpload = async () => {
+  const handleUpload = () => {
     if (!resumeFile) {
       showMessage("Please select a file to upload.", "error");
       return;
     }
-    if (!userId || !db) {
+    if (!userId) {
       showMessage("Authentication error. Please log in again.", "error");
       return;
     }
 
     try {
-      const docRef = doc(db, `artifacts/${appId}/users/${userId}/resumes`, resumeFile.name); // Using file name as doc ID
-      await setDoc(docRef, {
-        fileName: resumeFile.name,
-        fileType: resumeFile.type,
-        fileSize: resumeFile.size,
-        uploadDate: new Date().toISOString(),
-        // In a real app, you'd upload the file to Firebase Storage and save its URL here
-      });
+      localStorage.setItem(`currentResume_${userId}`, resumeFile.name);
       setUploadedResumeName(resumeFile.name);
       showMessage(`Resume "${resumeFile.name}" uploaded successfully!`, "success");
-      setResumeFile(null); // Clear selected file
-      // Add the new resume to mockResumes
+      setResumeFile(null);
       setMockResumes(prev => [...prev, { id: `res${Date.now()}`, name: resumeFile.name, date: new Date().toISOString().split('T')[0], type: resumeFile.name.split('.').pop().toUpperCase() }]);
     } catch (error) {
       console.error("Error uploading resume:", error);
@@ -1376,7 +1339,7 @@ const ResumeManagementSection = ({ userId, db, showMessage, colorPalette }) => {
 };
 
 // Applied Jobs Section - Enhanced
-const AppliedJobsSection = ({ userId, db, colorPalette }) => {
+const AppliedJobsSection = ({ userId, colorPalette }) => {
   const [appliedJobs, setAppliedJobs] = useState([
     { id: 'app1', jobId: 'job1', jobTitle: "SDE 1 - Backend Engineer", company: "Livspace", status: "Under Review", applyDate: "2024-07-20", updateDate: "2024-07-22" },
     { id: 'app2', jobId: 'job2', jobTitle: "Software Developer", company: "S&P Global Market Intelligence", status: "Shortlisted", applyDate: "2024-07-15", updateDate: "2024-07-21" },
@@ -1500,26 +1463,21 @@ const AppliedJobsSection = ({ userId, db, colorPalette }) => {
 };
 
 // New Component: Saved Jobs Section
-const SavedJobsSection = ({ userId, db, colorPalette }) => {
+const SavedJobsSection = ({ userId, colorPalette }) => {
   const [savedJobs, setSavedJobs] = useState([]); // State to store saved jobs
 
   useEffect(() => {
-    const fetchSavedJobs = async () => {
-      if (!userId || !db) return;
+    const fetchSavedJobs = () => {
+      if (!userId) return;
       try {
-        const q = query(collection(db, `artifacts/${appId}/users/${userId}/savedJobs`));
-        const querySnapshot = await getDocs(q);
-        const fetchedJobs = [];
-        querySnapshot.forEach((doc) => {
-          fetchedJobs.push({ id: doc.id, ...doc.data() });
-        });
-        setSavedJobs(fetchedJobs);
+        const jobs = JSON.parse(localStorage.getItem(`savedJobs_${userId}`) || '[]');
+        setSavedJobs(jobs);
       } catch (error) {
         console.error("Error fetching saved jobs:", error);
       }
     };
     fetchSavedJobs();
-  }, [userId, db]);
+  }, [userId]);
 
   const jobCardStyles = {
     backgroundColor: colorPalette.cardBg, // Card background
@@ -1598,15 +1556,14 @@ const SavedJobsSection = ({ userId, db, colorPalette }) => {
     marginTop: '0.5rem',
   };
 
-  const handleRemoveJob = async (jobId) => {
-    if (!userId || !db) return;
+  const handleRemoveJob = (jobId) => {
+    if (!userId) return;
     try {
-      await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/savedJobs`, jobId));
-      setSavedJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
-      // showMessage(`Job removed from saved list!`, "success"); // Optionally show message
+      const jobs = savedJobs.filter(job => job.id !== jobId);
+      localStorage.setItem(`savedJobs_${userId}`, JSON.stringify(jobs));
+      setSavedJobs(jobs);
     } catch (error) {
       console.error("Error removing saved job:", error);
-      // showMessage(`Failed to remove job: ${error.message}`, "error"); // Optionally show message
     }
   };
 
@@ -1816,7 +1773,7 @@ const ProfileOverviewSection = ({ userId, setActiveSection, colorPalette, profil
 };
 
 // New Component: Profile Details Section
-const ProfileDetailsSection = ({ userId, db, showMessage, colorPalette, setProfileCompletion }) => {
+const ProfileDetailsSection = ({ userId, showMessage, colorPalette, setProfileCompletion }) => {
   // Mock profile data (can be fetched from Firestore in a real app)
   const [profileData, setProfileData] = useState({
     profilePicture: 'https://placehold.co/100x100/088F8F/ffffff?text=Profile', // Default placeholder
@@ -3809,8 +3766,7 @@ const AIChatbotSection = ({ colorPalette }) => {
 
 // Main User Dashboard Page Component
 const UserDashboardPage = () => {
-  const [userId, setUserId] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [userId, setUserId] = useState('user-' + Date.now());
   const [activeSection, setActiveSection] = useState('dashboardOverview');
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalMessage, setCustomModalMessage] = useState('');
@@ -3822,41 +3778,20 @@ const UserDashboardPage = () => {
 
   const colorPalette = isDarkMode ? DARK_COLOR_PALETTE : LIGHT_COLOR_PALETTE;
 
-  // Firebase Authentication and Firestore Setup
+  // Initialize user session
   useEffect(() => {
-    const initializeFirebaseAndAuth = async () => {
-      if (!app || !auth || !db) {
-        console.error("Firebase app, auth, or db not initialized.");
-        return;
-      }
-
+    // Check if user is logged in from localStorage
+    const storedUser = localStorage.getItem('yuvasaathi_user');
+    if (storedUser) {
       try {
-        if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
-        } else {
-          await signInAnonymously(auth);
-        }
-        console.log("Firebase authentication successful.");
+        setUserId(JSON.parse(storedUser).userId);
       } catch (error) {
-        console.error("Firebase authentication failed:", error);
+        console.error('Error parsing stored user:', error);
       }
-
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (user) {
-          setUserId(user.uid);
-          console.log("User ID:", user.uid);
-        } else {
-          setUserId(null);
-          console.log("No user signed in.");
-        }
-        setIsAuthReady(true); // Auth state is ready
-      });
-
-      return () => unsubscribe();
-    };
-
-    initializeFirebaseAndAuth();
-  }, []); // Run only once on component mount
+    }
+    // Note: Removed automatic redirect to allow dashboard to load
+    // Your login page should set localStorage.setItem('yuvasaathi_user', JSON.stringify({ userId: 'user-id' }))
+  }, []);
 
   // Function to show custom message modal
   const handleShowMessage = (message, type) => {
@@ -3870,19 +3805,21 @@ const UserDashboardPage = () => {
   };
 
   // Function to save a job to Firestore
-  const handleSaveJob = async (job) => {
-    if (!userId || !db) {
+  const handleSaveJob = (job) => {
+    if (!userId) {
       handleShowMessage("Please log in to save jobs.", "error");
       return;
     }
     try {
-      // Check if job already exists to prevent duplicates
-      const savedJobsRef = collection(db, `artifacts/${appId}/users/${userId}/savedJobs`);
-      const q = query(savedJobsRef, where("id", "==", job.id));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        await setDoc(doc(savedJobsRef, job.id), job); // Use job.id as document ID
+      // Get saved jobs from localStorage
+      const savedJobs = JSON.parse(localStorage.getItem(`savedJobs_${userId}`) || '[]');
+      
+      // Check if job already exists
+      const jobExists = savedJobs.some(savedJob => savedJob.id === job.id);
+      
+      if (!jobExists) {
+        savedJobs.push(job);
+        localStorage.setItem(`savedJobs_${userId}`, JSON.stringify(savedJobs));
         handleShowMessage(`Job "${job.title}" saved successfully!`, "success");
       } else {
         handleShowMessage(`Job "${job.title}" is already saved.`, "info");
@@ -3893,18 +3830,11 @@ const UserDashboardPage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      handleShowMessage("Logged out successfully!", "success");
-      // Optionally redirect to login page or clear state
-      setActiveSection('dashboardOverview'); // Reset view
-      setUserId(null); // Clear userId
-      setIsAuthReady(false); // Reset auth state
-    } catch (error) {
-      console.error("Error logging out:", error);
-      handleShowMessage(`Logout failed: ${error.message}`, "error");
-    }
+  const handleLogout = () => {
+    // Clear user data from localStorage
+    localStorage.removeItem('yuvasaathi_user');
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   const sidebarStyle = {
@@ -4329,27 +4259,19 @@ const UserDashboardPage = () => {
         </div>
 
         {/* Render Sections based on activeSection state */}
-        {isAuthReady ? (
-          <>
-            {activeSection === 'dashboardOverview' && <ProfileOverviewSection userId={userId} setActiveSection={setActiveSection} colorPalette={colorPalette} profileCompletion={profileCompletion} />}
-            {activeSection === 'jobSearch' && <JobSearchSection onSaveJob={handleSaveJob} showMessage={handleShowMessage} colorPalette={colorPalette} />}
-            {activeSection === 'appliedJobs' && <AppliedJobsSection userId={userId} db={db} colorPalette={colorPalette} />}
-            {activeSection === 'savedJobs' && <SavedJobsSection userId={userId} db={db} colorPalette={colorPalette} />}
-            {activeSection === 'resumeManagement' && <ResumeManagementSection userId={userId} db={db} showMessage={handleShowMessage} colorPalette={colorPalette} />}
-            {activeSection === 'resumeTemplates' && <ResumeTemplatesSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
-            {activeSection === 'recommendations' && <RecommendationsSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
-            {activeSection === 'profilePerformance' && <ProfilePerformanceSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
-            {activeSection === 'mockTests' && <MockTestsSection showMessage={handleShowMessage} colorPalette={colorPalette} setActiveSection={setActiveSection} />}
-            {activeSection === 'skillDevelopment' && <SkillDevelopmentSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
-            {activeSection === 'aiChatbot' && <AIChatbotSection colorPalette={colorPalette} />}
-            {activeSection === 'settings' && <SettingsSection showMessage={handleShowMessage} setActiveSection={setActiveSection} toggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode} colorPalette={colorPalette} />}
-            {activeSection === 'profileDetails' && <ProfileDetailsSection userId={userId} db={db} showMessage={handleShowMessage} colorPalette={colorPalette} setProfileCompletion={setProfileCompletion} />}
-          </>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '5rem', color: colorPalette.textGray }}>
-            Loading dashboard... Please wait.
-          </div>
-        )}
+        {activeSection === 'dashboardOverview' && <ProfileOverviewSection userId={userId} setActiveSection={setActiveSection} colorPalette={colorPalette} profileCompletion={profileCompletion} />}
+        {activeSection === 'jobSearch' && <JobSearchSection onSaveJob={handleSaveJob} showMessage={handleShowMessage} colorPalette={colorPalette} />}
+        {activeSection === 'appliedJobs' && <AppliedJobsSection userId={userId} colorPalette={colorPalette} />}
+        {activeSection === 'savedJobs' && <SavedJobsSection userId={userId} colorPalette={colorPalette} />}
+        {activeSection === 'resumeManagement' && <ResumeManagementSection userId={userId} showMessage={handleShowMessage} colorPalette={colorPalette} />}
+        {activeSection === 'resumeTemplates' && <ResumeTemplatesSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
+        {activeSection === 'recommendations' && <RecommendationsSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
+        {activeSection === 'profilePerformance' && <ProfilePerformanceSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
+        {activeSection === 'mockTests' && <MockTestsSection showMessage={handleShowMessage} colorPalette={colorPalette} setActiveSection={setActiveSection} />}
+        {activeSection === 'skillDevelopment' && <SkillDevelopmentSection showMessage={handleShowMessage} colorPalette={colorPalette} />}
+        {activeSection === 'aiChatbot' && <AIChatbotSection colorPalette={colorPalette} />}
+        {activeSection === 'settings' && <SettingsSection showMessage={handleShowMessage} setActiveSection={setActiveSection} toggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode} colorPalette={colorPalette} />}
+        {activeSection === 'profileDetails' && <ProfileDetailsSection userId={userId} showMessage={handleShowMessage} colorPalette={colorPalette} setProfileCompletion={setProfileCompletion} />}
       </div>
 
       {showCustomModal && (
