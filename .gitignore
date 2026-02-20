@@ -1,5 +1,14 @@
 node_modules/
 .env
-.env.local
+.env.*
+__pycache__/
+*.pyc
+*.pyd
+*.dll
+*.pdf
+generated_resumes/
+psycopg2/
+psycopg2_binary*
 dist/
 build/
+.vercel/
