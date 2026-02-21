@@ -896,6 +896,7 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
   const [selectedTemplate, setSelectedTemplate] = useState(''); // State for selected template
   const [showResumePreview, setShowResumePreview] = useState(false); // State to show preview modal
   const [previewResumeData, setPreviewResumeData] = useState(null); // Data for preview modal
+  const [editingResume, setEditingResume] = useState(null); // State for editing resume
 
   // Mock resume data for display
   const [mockResumes, setMockResumes] = useState([
@@ -973,9 +974,24 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
     try {
       localStorage.setItem(`currentResume_${userId}`, resumeFile.name);
       setUploadedResumeName(resumeFile.name);
+      const newResume = {
+        id: `res${Date.now()}`,
+        name: resumeFile.name,
+        date: new Date().toISOString().split('T')[0],
+        type: resumeFile.name.split('.').pop().toUpperCase(),
+        content: {
+          name: '',
+          email: '',
+          phone: '',
+          experience: '',
+          education: '',
+          skills: '',
+          objective: ''
+        }
+      };
+      setMockResumes(prev => [...prev, newResume]);
       showMessage(`Resume "${resumeFile.name}" uploaded successfully!`, "success");
       setResumeFile(null);
-      setMockResumes(prev => [...prev, { id: `res${Date.now()}`, name: resumeFile.name, date: new Date().toISOString().split('T')[0], type: resumeFile.name.split('.').pop().toUpperCase() }]);
     } catch (error) {
       console.error("Error uploading resume:", error);
       showMessage(`Failed to upload resume: ${error.message}`, "error");
@@ -985,10 +1001,15 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
   const handleDeleteResume = (id, name) => {
     if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
       setMockResumes(prev => prev.filter(resume => resume.id !== id));
+      if (uploadedResumeName === name) setUploadedResumeName('');
       showMessage(`Resume "${name}" deleted successfully!`, "success");
-      // In a real app, you would delete from Firestore here:
-      // deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/resumes`, id));
     }
+  };
+
+  const handleEditResume = (resume) => {
+    setEditingResume(resume);
+    setIsBuildingResume(true);
+    setSelectedTemplate('standard');
   };
 
   const fileInputStyle = {
@@ -1128,6 +1149,8 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                     style={resumeCardActionButton}
                     onMouseEnter={e => Object.assign(e.currentTarget.style, resumeCardActionButtonHover)}
                     onMouseLeave={e => Object.assign(e.currentTarget.style, resumeCardActionButton)}
+                    onClick={() => showMessage(`Viewing resume: ${resume.name}`, "info")}
+                    title="View Resume"
                   >
                     <FileSearch size={18} />
                   </button>
@@ -1135,6 +1158,8 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                     style={resumeCardActionButton}
                     onMouseEnter={e => Object.assign(e.currentTarget.style, resumeCardActionButtonHover)}
                     onMouseLeave={e => Object.assign(e.currentTarget.style, resumeCardActionButton)}
+                    onClick={() => handleEditResume(resume)}
+                    title="Edit Resume"
                   >
                     <Edit size={18} />
                   </button>
@@ -1143,6 +1168,7 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                     onMouseEnter={e => Object.assign(e.currentTarget.style, {...resumeCardActionButtonHover, color: colorPalette.errorButtonHover})}
                     onMouseLeave={e => Object.assign(e.currentTarget.style, {...resumeCardActionButton, color: colorPalette.errorButton})}
                     onClick={() => handleDeleteResume(resume.id, resume.name)}
+                    title="Delete Resume"
                   >
                     <XCircle size={18} />
                   </button>
@@ -1163,6 +1189,8 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                     style={resumeCardActionButton}
                     onMouseEnter={e => Object.assign(e.currentTarget.style, resumeCardActionButtonHover)}
                     onMouseLeave={e => Object.assign(e.currentTarget.style, resumeCardActionButton)}
+                    onClick={() => showMessage(`Viewing resume: ${uploadedResumeName}`, "info")}
+                    title="View Resume"
                   >
                     <FileSearch size={18} />
                   </button>
@@ -1170,6 +1198,11 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                     style={resumeCardActionButton}
                     onMouseEnter={e => Object.assign(e.currentTarget.style, resumeCardActionButtonHover)}
                     onMouseLeave={e => Object.assign(e.currentTarget.style, resumeCardActionButton)}
+                    onClick={() => {
+                      const tempResume = { id: 'uploaded-temp', name: uploadedResumeName, content: null };
+                      handleEditResume(tempResume);
+                    }}
+                    title="Edit Resume"
                   >
                     <Edit size={18} />
                   </button>
@@ -1177,7 +1210,8 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                     style={{...resumeCardActionButton, color: colorPalette.errorButton}}
                     onMouseEnter={e => Object.assign(e.currentTarget.style, {...resumeCardActionButtonHover, color: colorPalette.errorButtonHover})}
                     onMouseLeave={e => Object.assign(e.currentTarget.style, {...resumeCardActionButton, color: colorPalette.errorButton})}
-                    onClick={() => handleDeleteResume('uploaded-temp', uploadedResumeName)} // Use a unique ID for temp uploads
+                    onClick={() => handleDeleteResume('uploaded-temp', uploadedResumeName)}
+                    title="Delete Resume"
                   >
                     <XCircle size={18} />
                   </button>
@@ -1188,53 +1222,68 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
         )}
 
         <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: colorPalette.blackText, marginTop: '2rem', marginBottom: '1rem' }}>
-          Update Resume (Upload New)
+          Upload or Create Resume
         </h3>
-        <input
-          type="file"
-          id="resumeUploadInput"
-          onChange={handleFileChange}
-          style={fileInputStyle}
-          accept=".pdf,.doc,.docx,.jpg,.png"
-        />
-        <div style={{ display: 'flex', flexDirection: window.innerWidth < 768 ? 'column' : 'row', gap: '1rem' }}>
-          <label htmlFor="resumeUploadInput" style={{ ...actionButtonStyles, backgroundColor: colorPalette.primary, cursor: 'pointer' }}>
-            <UploadCloud size={20} /> Select File
-          </label>
-          <button
-            onClick={handleUpload}
-            style={{ ...actionButtonStyles, backgroundColor: colorPalette.successButton, }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = colorPalette.successButtonHover}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = colorPalette.successButton}
-            disabled={!resumeFile}
+        
+        {/* Upload Resume Section */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <input
+            type="file"
+            id="resumeUpload"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            style={fileInputStyle}
+            onChange={handleFileChange}
+          />
+          <label
+            htmlFor="resumeUpload"
+            style={{
+              ...actionButtonStyles,
+              backgroundColor: colorPalette.primary,
+              width: 'auto',
+              marginBottom: '0.8rem',
+              cursor: 'pointer',
+              justifyContent: 'center'
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = colorPalette.accent}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = colorPalette.primary}
           >
-            <Send size={20} /> Upload to Profile
-          </button>
+            <UploadCloud size={20} /> Upload Resume
+          </label>
+          {resumeFile && (
+            <div style={fileInfoStyle}>
+              <span>{resumeFile.name} ({(resumeFile.size / 1024).toFixed(2)} KB)</span>
+              <button
+                onClick={handleUpload}
+                style={{
+                  ...actionButtonStyles,
+                  backgroundColor: colorPalette.successButton,
+                  padding: '0.5rem 1rem',
+                  width: 'auto'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = colorPalette.successButtonHover}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = colorPalette.successButton}
+              >
+                Confirm Upload
+              </button>
+            </div>
+          )}
         </div>
-        {resumeFile && (
-          <div style={fileInfoStyle}>
-            <span>Selected for upload: {resumeFile.name} ({Math.round(resumeFile.size / 1024)} KB)</span>
-            <X size={18} style={{ cursor: 'pointer', color: colorPalette.errorButton }} onClick={() => setResumeFile(null)} />
-          </div>
-        )}
 
-        <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: colorPalette.blackText, marginTop: '2rem', marginBottom: '1rem' }}>
-          Create Resume
-        </h3>
         <button
           onClick={() => setIsBuildingResume(!isBuildingResume)}
-          style={{ ...actionButtonStyles, backgroundColor: colorPalette.accent, width: '100%' }}
+          style={{ ...actionButtonStyles, backgroundColor: colorPalette.accent, width: 'auto' }}
           onMouseEnter={e => e.currentTarget.style.backgroundColor = colorPalette.primary}
           onMouseLeave={e => e.currentTarget.style.backgroundColor = colorPalette.accent}
         >
-          <FilePlus size={20} /> {isBuildingResume ? 'Close Resume Builder' : 'Open Resume Builder'}
+          <FilePlus size={20} /> {isBuildingResume ? 'Close Builder' : 'Build New Resume'}
         </button>
 
         {isBuildingResume && (
           <Formik
-            initialValues={selectedTemplate ? resumeTemplates[selectedTemplate].initialValues : {
+            initialValues={editingResume?.content || (selectedTemplate ? resumeTemplates[selectedTemplate].initialValues : {
               name: '', email: '', phone: '', experience: '', education: '', skills: '', objective: ''
-            }}
+            })}
+            enableReinitialize={true}
             validationSchema={Yup.object({
               name: Yup.string().required('Required'),
               email: Yup.string().email('Invalid email').required('Required'),
@@ -1246,21 +1295,29 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
             })}
             onSubmit={(values, { setSubmitting, resetForm }) => {
               setTimeout(() => {
-                const newResume = {
-                  id: `res${Date.now()}`,
-                  name: `Resume by ${values.name}.pdf`, // Mock file name
-                  date: new Date().toISOString().split('T')[0],
-                  type: 'PDF',
-                  content: values, // Store form data as content
-                };
-                setMockResumes(prev => [...prev, newResume]);
-                showMessage('Resume created successfully!', 'success');
-                setPreviewResumeData(values); // Set data for preview
-                setShowResumePreview(true); // Show preview modal
+                if (editingResume) {
+                  setMockResumes(prev => prev.map(r => 
+                    r.id === editingResume.id ? { ...r, content: values, name: `Resume by ${values.name}.pdf` } : r
+                  ));
+                  showMessage('Resume updated successfully!', 'success');
+                  setEditingResume(null);
+                } else {
+                  const newResume = {
+                    id: `res${Date.now()}`,
+                    name: `Resume by ${values.name}.pdf`,
+                    date: new Date().toISOString().split('T')[0],
+                    type: 'PDF',
+                    content: values,
+                  };
+                  setMockResumes(prev => [...prev, newResume]);
+                  showMessage('Resume created successfully!', 'success');
+                }
+                setPreviewResumeData(values);
+                setShowResumePreview(true);
                 resetForm();
                 setSubmitting(false);
-                setIsBuildingResume(false); // Close builder after submission
-                setSelectedTemplate(''); // Clear selected template
+                setIsBuildingResume(false);
+                setSelectedTemplate('');
               }, 1000);
             }}
           >
@@ -1317,7 +1374,7 @@ const ResumeManagementSection = ({ userId, showMessage, colorPalette }) => {
                       onMouseEnter={e => { if (!isSubmitting) e.currentTarget.style.backgroundColor = colorPalette.successButtonHover; }}
                       onMouseLeave={e => { if (!isSubmitting) e.currentTarget.style.backgroundColor = colorPalette.successButton; }}
                     >
-                      {isSubmitting ? 'Saving Resume...' : 'Save Resume'}
+                      {isSubmitting ? 'Saving...' : (editingResume ? 'Update Resume' : 'Save Resume')}
                     </button>
                   </>
                 )}

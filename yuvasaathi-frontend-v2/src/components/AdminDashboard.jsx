@@ -976,32 +976,6 @@ const UserManagement = ({ colorPalette, showMessage }) => {
           </tbody>
         </table>
       </div>
-      <button
-        onClick={() => setShowAddUserModal(true)}
-        style={{
-          backgroundColor: colorPalette.successButton,
-          color: colorPalette.pureWhite,
-          padding: '0.8rem 1.5rem',
-          borderRadius: '0.5rem',
-          border: 'none',
-          fontWeight: '600',
-          fontSize: '1rem',
-          cursor: 'pointer',
-          marginTop: '1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.6rem',
-          transition: 'background-color 0.3s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.backgroundColor = colorPalette.successButtonHover}
-        onMouseLeave={e => e.currentTarget.style.backgroundColor = colorPalette.successButton}
-      >
-        <PlusCircle size={20} /> Add New User
-      </button>
-
-      {showAddUserModal && (
-        <AddUserModal onClose={() => setShowAddUserModal(false)} showMessage={showMessage} colorPalette={colorPalette} onAddUser={handleAddUser} />
-      )}
       {showEditUserModal && selectedUser && (
         <EditUserModal onClose={() => setShowEditUserModal(false)} showMessage={showMessage} colorPalette={colorPalette} onEditUser={handleEditUser} user={selectedUser} />
       )}
