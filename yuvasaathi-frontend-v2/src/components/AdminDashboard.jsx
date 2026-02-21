@@ -7,36 +7,7 @@ import {
   Lock, UserCheck, Mail, Image as ImageIcon
 } from 'lucide-react';
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 
-// Ensure __app_id and __firebase_config are defined in the environment
-const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'standalone-admin-dashboard';
-const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {
-  // Minimal placeholder Firebase config for standalone testing
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.Iinitial_auth_token : null;
-
-// Initialize Firebase (only once)
-let app;
-let db;
-let auth;
-
-try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  auth = getAuth(app);
-} catch (error) {
-  console.error("Firebase initialization error:", error);
-  console.warn("Using default Firebase config. Please replace with your actual project config for full functionality.");
-}
 
 // Define color palettes
 const LIGHT_COLOR_PALETTE = {
@@ -1589,24 +1560,145 @@ const SkillProgramManagement = ({ colorPalette, showMessage }) => {
   );
 };
 
+// Simple Line Chart Component
+const LineChart = ({ data, title, color, colorPalette }) => {
+  const width = 400;
+  const height = 200;
+  const padding = 40;
+  const maxValue = Math.max(...data.map(d => d.value));
+  const points = data.map((d, i) => {
+    const x = padding + (i * (width - 2 * padding) / (data.length - 1));
+    const y = height - padding - ((d.value / maxValue) * (height - 2 * padding));
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h4 style={{ fontSize: '1rem', fontWeight: '600', color: colorPalette.blackText, marginBottom: '1rem' }}>{title}</h4>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ maxWidth: '100%' }}>
+        <polyline points={points} fill="none" stroke={color} strokeWidth="3" />
+        {data.map((d, i) => {
+          const x = padding + (i * (width - 2 * padding) / (data.length - 1));
+          const y = height - padding - ((d.value / maxValue) * (height - 2 * padding));
+          return <circle key={i} cx={x} cy={y} r="4" fill={color} />;
+        })}
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke={colorPalette.borderGray} strokeWidth="2" />
+        <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke={colorPalette.borderGray} strokeWidth="2" />
+        {data.map((d, i) => {
+          const x = padding + (i * (width - 2 * padding) / (data.length - 1));
+          return <text key={i} x={x} y={height - 20} textAnchor="middle" fontSize="10" fill={colorPalette.textGray}>{d.label}</text>;
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// Simple Bar Chart Component
+const BarChart = ({ data, title, colorPalette }) => {
+  const width = 400;
+  const height = 200;
+  const padding = 40;
+  const maxValue = Math.max(...data.map(d => d.value));
+  const barWidth = (width - 2 * padding) / data.length - 10;
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h4 style={{ fontSize: '1rem', fontWeight: '600', color: colorPalette.blackText, marginBottom: '1rem' }}>{title}</h4>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ maxWidth: '100%' }}>
+        {data.map((d, i) => {
+          const x = padding + (i * (width - 2 * padding) / data.length) + 5;
+          const barHeight = (d.value / maxValue) * (height - 2 * padding);
+          const y = height - padding - barHeight;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={barWidth} height={barHeight} fill={d.color} rx="4" />
+              <text x={x + barWidth / 2} y={height - 20} textAnchor="middle" fontSize="10" fill={colorPalette.textGray}>{d.label}</text>
+              <text x={x + barWidth / 2} y={y - 5} textAnchor="middle" fontSize="11" fontWeight="600" fill={colorPalette.blackText}>{d.value}</text>
+            </g>
+          );
+        })}
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke={colorPalette.borderGray} strokeWidth="2" />
+      </svg>
+    </div>
+  );
+};
+
+// Simple Donut Chart Component
+const DonutChart = ({ data, title, colorPalette }) => {
+  const size = 180;
+  const strokeWidth = 30;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  let currentAngle = 0;
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h4 style={{ fontSize: '1rem', fontWeight: '600', color: colorPalette.blackText, marginBottom: '1rem' }}>{title}</h4>
+      <svg width={size} height={size} style={{ margin: '0 auto', display: 'block' }}>
+        {data.map((d, i) => {
+          const percentage = (d.value / total) * 100;
+          const offset = circumference - (percentage / 100) * circumference;
+          const rotation = currentAngle;
+          currentAngle += percentage * 3.6;
+          return (
+            <circle
+              key={i}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={d.color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={`${circumference}`}
+              strokeDashoffset={offset}
+              transform={`rotate(${rotation - 90} ${size / 2} ${size / 2})`}
+            />
+          );
+        })}
+      </svg>
+      <div style={{ marginTop: '1rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.8rem' }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <div style={{ width: '12px', height: '12px', backgroundColor: d.color, borderRadius: '2px' }}></div>
+            <span style={{ fontSize: '0.85rem', color: colorPalette.darkTextGray }}>{d.label}: {d.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // Analytics & Reports Section
 const AnalyticsReports = ({ colorPalette }) => {
+  const userRegistrationData = [
+    { label: 'Jan', value: 1200 },
+    { label: 'Feb', value: 1900 },
+    { label: 'Mar', value: 2400 },
+    { label: 'Apr', value: 2100 },
+    { label: 'May', value: 2800 },
+    { label: 'Jun', value: 3200 },
+  ];
+
+  const jobsVsApplicationsData = [
+    { label: 'Jobs', value: 2500, color: colorPalette.primary },
+    { label: 'Apps', value: 15000, color: colorPalette.accent },
+  ];
+
+  const topSkillsData = [
+    { label: 'IT', value: 35, color: colorPalette.primary },
+    { label: 'Vocational', value: 28, color: colorPalette.accent },
+    { label: 'Soft Skills', value: 22, color: colorPalette.successButton },
+    { label: 'Others', value: 15, color: colorPalette.errorButton },
+  ];
+
   const chartContainerStyle = {
-    width: '100%',
-    height: '300px',
     backgroundColor: colorPalette.cardBg,
     padding: '1.5rem',
     borderRadius: '0.75rem',
     boxShadow: `0 4px 12px ${colorPalette.shadowColor}`,
     marginTop: '1.5rem',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: colorPalette.textGray,
-    fontSize: '1.1rem',
-    fontWeight: 'bold',
-    overflowX: 'auto',
-    flexDirection: 'column',
+    border: `1px solid ${colorPalette.borderGray}`,
   };
 
   const insightCardStyle = {
@@ -1618,7 +1710,7 @@ const AnalyticsReports = ({ colorPalette }) => {
     textAlign: 'center',
     fontSize: '0.9rem',
     color: colorPalette.darkTextGray,
-    marginBottom: '1rem', // Spacing between insights
+    marginBottom: '1rem',
   };
 
   return (
@@ -1653,14 +1745,16 @@ const AnalyticsReports = ({ colorPalette }) => {
       <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: colorPalette.blackText, marginTop: '2.5rem', marginBottom: '1rem' }}>
         Trends & Visualizations
       </h3>
-      <div style={chartContainerStyle}>
-        <p>[Graph Placeholder: User Registrations Over Time]</p>
-      </div>
-      <div style={chartContainerStyle}>
-        <p>[Graph Placeholder: Jobs Posted vs. Applications]</p>
-      </div>
-      <div style={chartContainerStyle}>
-        <p>[Graph Placeholder: Top Demanded Skills]</p>
+      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
+        <div style={chartContainerStyle}>
+          <LineChart data={userRegistrationData} title="User Registrations Over Time" color={colorPalette.primary} colorPalette={colorPalette} />
+        </div>
+        <div style={chartContainerStyle}>
+          <BarChart data={jobsVsApplicationsData} title="Jobs Posted vs Applications" colorPalette={colorPalette} />
+        </div>
+        <div style={chartContainerStyle}>
+          <DonutChart data={topSkillsData} title="Top Demanded Skills" colorPalette={colorPalette} />
+        </div>
       </div>
     </div>
   );
@@ -2425,8 +2519,7 @@ const RightPanel = ({ colorPalette, showPanel, onClose, onShowAdDetails }) => {
 export default function AdminDashboardPage() {
   const [activeSection, setActiveSection] = useState('dashboardOverview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
-  const [userId, setUserId] = useState(null); // Will ideally be an Admin user ID
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [userId, setUserId] = useState('admin-' + Date.now());
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalMessage, setCustomModalMessage] = useState('');
   const [customModalType, setCustomModalType] = useState('info');
@@ -2473,47 +2566,11 @@ export default function AdminDashboardPage() {
     setShowAdDetailsModal(true);
   };
 
-  // Firebase Auth for Admin (conceptual - would typically involve admin-specific auth)
-  useEffect(() => {
-    if (!auth || !db) {
-      console.error("Firebase is not initialized. Cannot proceed with authentication.");
-      setIsAuthReady(true);
-      return;
-    }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // In a real app, you'd check if this user has admin role
-        setUserId(user.uid);
-      } else {
-        try {
-          // For standalone demo, sign in anonymously or use a mock admin ID
-          await signInAnonymously(auth);
-          setUserId(auth.currentUser.uid); // Mock as admin for demo
-        } catch (error) {
-          console.error("Firebase anonymous sign-in error in standalone admin dashboard:", error);
-          setUserId('mock-admin-id'); // Fallback to mock ID
-          handleShowMessage("Could not sign in anonymously. Using a demo admin ID.", "error");
-        }
-      }
-      setIsAuthReady(true);
-    });
 
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      if (auth) {
-        await signOut(auth);
-      }
-      setUserId(null);
-      handleShowMessage("Admin logged out.", "success");
-      console.log("Admin logged out (standalone demo)");
-    } catch (error) {
-      console.error("Error logging out:", error);
-      handleShowMessage(`Error logging out: ${error.message}`, "error");
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('yuvasaathi_admin');
+    window.location.href = '/login';
   };
 
   useEffect(() => {
@@ -2646,41 +2703,7 @@ export default function AdminDashboardPage() {
     transition: 'transform 0.3s ease-in-out, background-color 0.3s',
   };
 
-  if (!isAuthReady) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: colorPalette.primaryGradient, // Use gradient here
-        color: colorPalette.pureWhite, fontSize: '1.5rem', fontWeight: 'bold'
-      }}>
-        Loading Admin Dashboard...
-      </div>
-    );
-  }
 
-  if (!userId) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        backgroundColor: colorPalette.errorBg, color: colorPalette.errorText, fontSize: '1.2rem',
-        fontWeight: 'bold', padding: '2rem', textAlign: 'center'
-      }}>
-        <XCircle size={48} style={{ marginBottom: '1rem' }} />
-        <p>Authentication failed or admin user ID not found.</p>
-        <p>Please ensure Firebase is correctly configured and authenticated with admin privileges.</p>
-        <button
-          onClick={() => { window.location.reload(); }}
-          style={{
-            marginTop: '1.5rem', padding: '0.8rem 1.5rem', backgroundColor: colorPalette.errorButton,
-            color: colorPalette.pureWhite, borderRadius: '0.5rem', border: 'none', cursor: 'pointer',
-            fontSize: '1rem', fontWeight: '600', transition: 'background-color 0.3s',
-          }}
-        >
-          Retry / Reload
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div style={mainContainerStyles}>
